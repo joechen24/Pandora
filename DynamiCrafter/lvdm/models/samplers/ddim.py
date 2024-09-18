@@ -29,7 +29,7 @@ class DDIMSampler(object):
         to_torch = lambda x: x.clone().detach().to(self.model.device).to(torch.float32)
 
         if self.model.use_dynamic_rescale:
-            self.ddim_scale_arr = self.model.scale_arr[self.ddim_timesteps]
+            self.ddim_scale_arr = self.model.scale_arr[self.ddim_timesteps].to(self.model.device)
             self.ddim_scale_arr_prev = torch.cat([self.ddim_scale_arr[0:1], self.ddim_scale_arr[:-1]])
         
         # print(alphas_cumprod)
@@ -50,13 +50,16 @@ class DDIMSampler(object):
         self.register_buffer('sqrt_recipm1_alphas_cumprod', to_torch(self.model.sqrt_recipm1_alphas_cumprod))
 
         # ddim sampling parameters
-        ddim_sigmas, ddim_alphas, ddim_alphas_prev = make_ddim_sampling_parameters(alphacums=alphas_cumprod.cpu(),
-                                                                                   ddim_timesteps=self.ddim_timesteps,
-                                                                                   eta=ddim_eta,verbose=verbose)
+        ddim_sigmas, ddim_alphas, ddim_alphas_prev = make_ddim_sampling_parameters(
+            alphacums=alphas_cumprod,
+            ddim_timesteps=self.ddim_timesteps,
+            eta=ddim_eta,
+            verbose=verbose,
+        )
         self.register_buffer('ddim_sigmas', ddim_sigmas)
         self.register_buffer('ddim_alphas', ddim_alphas)
         self.register_buffer('ddim_alphas_prev', ddim_alphas_prev)
-        self.register_buffer('ddim_sqrt_one_minus_alphas', np.sqrt(1. - ddim_alphas))
+        self.register_buffer('ddim_sqrt_one_minus_alphas', torch.sqrt(1. - ddim_alphas))
         sigmas_for_original_sampling_steps = ddim_eta * torch.sqrt(
             (1 - self.alphas_cumprod_prev) / (1 - self.alphas_cumprod) * (
                         1 - self.alphas_cumprod / self.alphas_cumprod_prev))
@@ -260,10 +263,10 @@ class DDIMSampler(object):
             size = (b, 1, 1, 1, 1)
         else:
             size = (b, 1, 1, 1)
-        a_t = torch.full(size, alphas[index], device=device, dtype=x.dtype)
-        a_prev = torch.full(size, alphas_prev[index], device=device, dtype=x.dtype)
-        sigma_t = torch.full(size, sigmas[index], device=device, dtype=x.dtype)
-        sqrt_one_minus_at = torch.full(size, sqrt_one_minus_alphas[index], device=device, dtype=x.dtype)
+        a_t = alphas[index:index+1].to(device).to(x.dtype).expand(size)
+        a_prev = alphas_prev[index:index+1].to(device).to(x.dtype).expand(size)
+        sigma_t = sigmas[index:index+1].to(device).to(x.dtype).expand(size)
+        sqrt_one_minus_at = sqrt_one_minus_alphas[index:index+1].to(device).to(x.dtype).expand(size)
         # current prediction for x_0
         if self.model.parameterization != "v":
             pred_x0 = (x - sqrt_one_minus_at * e_t) / a_t.sqrt()
@@ -271,8 +274,8 @@ class DDIMSampler(object):
             pred_x0 = self.model.predict_start_from_z_and_v(x, t, model_output)
         
         if self.model.use_dynamic_rescale:
-            scale_t = torch.full(size, self.ddim_scale_arr[index], device=device, dtype=x.dtype)
-            prev_scale_t = torch.full(size, self.ddim_scale_arr_prev[index], device=device, dtype=x.dtype)
+            scale_t = self.ddim_scale_arr[index:index+1].to(device).to(x.dtype).expand(size)
+            prev_scale_t = self.ddim_scale_arr_prev[index:index+1].to(device).to(x.dtype).expand(size)
             rescale = (prev_scale_t / scale_t)
             pred_x0 *= rescale
 

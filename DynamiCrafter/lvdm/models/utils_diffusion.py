@@ -80,10 +80,10 @@ def make_ddim_sampling_parameters(alphacums, ddim_timesteps, eta, verbose=True):
     # select alphas for computing the variance schedule
     # print(f'ddim_timesteps={ddim_timesteps}, len_alphacums={len(alphacums)}')
     alphas = alphacums[ddim_timesteps]
-    alphas_prev = np.asarray([alphacums[0]] + alphacums[ddim_timesteps[:-1]].tolist())
+    alphas_prev = torch.cat([alphacums[:1], alphacums[ddim_timesteps[:-1]]], dim=0)
 
     # according the the formula provided in https://arxiv.org/abs/2010.02502
-    sigmas = eta * np.sqrt((1 - alphas_prev) / (1 - alphas) * (1 - alphas / alphas_prev))
+    sigmas = eta * torch.sqrt((1 - alphas_prev) / (1 - alphas) * (1 - alphas / alphas_prev))
     if verbose:
         print(f'Selected alphas for ddim sampler: a_t: {alphas}; a_(t-1): {alphas_prev}')
         print(f'For the chosen value of eta, which is {eta}, '
