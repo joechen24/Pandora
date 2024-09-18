@@ -27,6 +27,10 @@ from einops import repeat
 from transformers import logging
 logging.set_verbosity_error()
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
+import deepspeed
+# Import the CrossAttention class from your diffusion model's modules
+from DynamiCrafter.lvdm.modules.attention import CrossAttention
+
 _make_causal_mask = AttentionMaskConverter._make_causal_mask
 
 Tokenizer = Union[PreTrainedTokenizer, PreTrainedTokenizerFast]
@@ -114,6 +118,31 @@ class WorldModel(PreTrainedModel):
 
         if config.use_image_tokenizer:
             self.image_embeddings.weight.data.normal_(mean=0.0, std=0.5)
+
+        # Define the injection policy
+        injection_policy = {
+            CrossAttention: ('q', 'k', 'v', 'proj_out')
+        }
+        # Initialize DeepSpeed inference engine
+        self.ds_diffusion_engine = deepspeed.init_inference(
+            model=self.diffusion_model,      # Model to be parallelized
+            replace_with_kernel_inject=False,
+            injection_policy=injection_policy,
+            use_triton=True,
+            triton_autotune=True,
+            config={
+                "dtype": "bf16", 
+                "zero": {
+                    "stage": 2,
+                    "contiguous_gradients": True,
+                    "overlap_comm": True,
+                    "reduce_scatter": True
+                },
+                "tensor_parallel": {
+                    "tp_size": 2,  # Number of GPUs
+                }
+            }
+        )
 
 
 
@@ -211,7 +240,7 @@ class WorldModel(PreTrainedModel):
 
     def image_guided_synthesis(self, diffusion_conditioning, videos, diffusion_cond_image, noise_shape, n_samples=1, ddim_steps=50, ddim_eta=1., \
                                unconditional_guidance_scale=1.0, cfg_img=None, fs=None, multiple_cond_cfg=False, loop=False, gfi=False, timestep_spacing='uniform', guidance_rescale=0.0, **kwargs):
-        ddim_sampler = DDIMSampler(self.diffusion_model) if not multiple_cond_cfg else DDIMSampler_multicond(self.diffusion_model)
+        ddim_sampler = DDIMSampler(self.ds_diffusion_engine.module) if not multiple_cond_cfg else DDIMSampler_multicond(self.ds_diffusion_engine.module)
         batch_size = noise_shape[0]
         fs = torch.tensor([fs] * batch_size, dtype=torch.long, device=self.diffusion_model.device)
 

@@ -9,8 +9,29 @@ os.environ['TMPDIR'] = os.path.join(current_directory,'.cache')
 import torch
 import gradio as gr
 from demo_utils import *
-args = parse_args()
-torch_device = "cuda" if torch.cuda.is_available() else "cpu"
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--ckpt_path', type=str, help='Path to checkpoint')
+parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+
+# Add this line to accept --local_rank
+parser.add_argument('--local_rank', type=int, default=0, help='Local rank for distributed execution')
+
+args = parser.parse_args()
+
+local_rank = args.local_rank
+world_size = int(os.environ.get('WORLD_SIZE', 1))
+
+# Initialize the process group for distributed execution
+torch.distributed.init_process_group(backend='nccl', rank=local_rank, world_size=world_size)
+
+# Set the device for this process
+device = torch.device(f'cuda:{local_rank}')
+torch.cuda.set_device(device)
+
+# torch_device = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"Process {local_rank} is using device {device}")
 
 
 repo_id = args.ckpt_path

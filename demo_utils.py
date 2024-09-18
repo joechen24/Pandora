@@ -10,6 +10,7 @@ import gradio as gr
 from argparse import ArgumentParser
 import os, re
 import uuid
+import deepspeed
 torch_device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
@@ -61,7 +62,6 @@ class ChatWM:
         self.current_round = 0
         self.video_path = [f'./video_output/video_output_gradio_round{i}_{uuid.uuid4()}.mp4' for i in range(10)]
         self.text_list = []
-
         
 
     def generate_video(self, image, text_input, ddim_steps, fs, n_samples,
