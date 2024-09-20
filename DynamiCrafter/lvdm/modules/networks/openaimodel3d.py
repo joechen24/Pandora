@@ -108,7 +108,7 @@ class Upsample(nn.Module):
             x = self.conv(x)
         return x
 
-
+@torch.compile 
 class ResBlock(TimestepBlock):
     """
     A residual block that can optionally change the number of channels.
@@ -238,7 +238,7 @@ class ResBlock(TimestepBlock):
             h = rearrange(h, 'b c t h w -> (b t) c h w')
         return h
 
-
+@torch.compile
 class TemporalConvBlock(nn.Module):
     """
     Adapted from modelscope: https://github.com/modelscope/modelscope/blob/master/modelscope/models/multi_modal/video_synthesis/unet_sd.py

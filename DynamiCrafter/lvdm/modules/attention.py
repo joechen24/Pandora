@@ -39,6 +39,7 @@ class RelativePosition(nn.Module):
         return embeddings
 
 
+@torch.compile
 class CrossAttention(nn.Module):
 
     def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0., 
@@ -143,6 +144,7 @@ class CrossAttention(nn.Module):
         
         return self.to_out(out)
     
+    @torch.compiler.disable(recursive=False)
     def efficient_forward(self, x, context=None, mask=None):
         spatial_self_attn = (context is None)
         k_ip, v_ip, out_ip = None, None, None
@@ -421,7 +423,7 @@ class GEGLU(nn.Module):
         x, gate = self.proj(x).chunk(2, dim=-1)
         return x * F.gelu(gate)
 
-
+@torch.compile
 class FeedForward(nn.Module):
     def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0.):
         super().__init__()

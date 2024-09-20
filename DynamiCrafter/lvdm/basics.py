@@ -7,6 +7,7 @@
 #
 # thanks!
 
+import torch
 import torch.nn as nn
 from utils.utils import instantiate_from_config
 
@@ -32,7 +33,7 @@ def scale_module(module, scale):
         p.detach().mul_(scale)
     return module
 
-
+@torch.compile
 def conv_nd(dims, *args, **kwargs):
     """
     Create a 1D, 2D, or 3D convolution module.
